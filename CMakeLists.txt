@@ -2,11 +2,23 @@ cmake_minimum_required(VERSION 3.5)
 
 project(socketapp)
 
-# write me cmake file that generates server and client executable
-# server executable should be called server
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -g -O0")
 
-add_executable(server src/server.c)
-add_executable(client src/client.c)
 
-target_link_libraries(server pthread wsock32 ws2_32)
-target_link_libraries(client pthread wsock32 ws2_32)
+# Gather all source files in src/client and src/server
+file(GLOB SERVER_SOURCES "src/server/*.*")
+file(GLOB CLIENT_SOURCES "src/client/*.*")
+file(GLOB COMMON_SOURCES "src/common/*.*")
+
+
+add_executable(server ${SERVER_SOURCES} ${COMMON_SOURCES})
+add_executable(client ${CLIENT_SOURCES} ${COMMON_SOURCES})
+
+# Link the Winsock library
+if(WIN32)
+  target_link_libraries(server wsock32 ws2_32)
+  target_link_libraries(client wsock32 ws2_32)
+endif()
+
+target_include_directories(server PUBLIC src/common)
+target_include_directories(client PUBLIC src/common)
