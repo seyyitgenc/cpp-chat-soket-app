@@ -1,6 +1,7 @@
 #pragma once
     
 #include "globals.h"
+#define MAX_CLIENTS 10
 
 class Server
 {
@@ -23,7 +24,7 @@ public:
         m_iResult = WSAStartup(MAKEWORD(2,2),&m_WsaData);
         if (m_iResult != 0)
         {
-            printf("WSAStartup failes: %d\n", m_iResult);
+            printf("WSAStartup failed: %d\n", m_iResult);
             return false;
         }
 
@@ -63,18 +64,25 @@ public:
             printf("Listen failed with error: %d\n",WSAGetLastError());
             return false;
         }
-        
+
+        // make it non blocking
+        // ioctlsocket(m_ListenSocket, FIONBIO, (u_long *)1);
         return true;
     };
     
     bool run(){
-        m_ClientSocket = accept(m_ListenSocket, NULL, NULL);
-        if (m_ClientSocket == INVALID_SOCKET){
-            printf("accept failed: %d\n", WSAGetLastError());
-            return false;
-        }
+        printf("Waiting for client to connect\n");
+        int len = sizeof(m_Hints);
+        m_ClientSocket = accept(m_ListenSocket, (sockaddr*)&m_Hints, &len);
+        printf("Client connected\n");
+
+        const char *msg = "Hello from server";
         while (1)
         {
+            if (m_ClientSocket == INVALID_SOCKET){
+                printf("accept failed: %d\n", WSAGetLastError());
+                return false;
+            }
             printf("Waiting for data\n");
             fflush(stdout);
             memset(m_Recvbuf, '\0', DEFAULT_BUFLEN);
@@ -84,8 +92,7 @@ public:
             }
             printf("Recieved packet from %s:%d\n", inet_ntoa(m_ClientAddr.sin_addr), ntohs(m_ClientAddr.sin_port));
             printf("Data: %s\n", m_Recvbuf);
-
-            if(send(m_ClientSocket, m_Recvbuf, DEFAULT_BUFLEN, 0) == SOCKET_ERROR){
+            if(send(m_ClientSocket,msg,strlen(msg), 0) == SOCKET_ERROR){
                 printf("send failed: %d\n", WSAGetLastError());
                 return false;
             }
@@ -105,6 +112,8 @@ private:
     WSADATA m_WsaData;
     SOCKET m_ListenSocket;
     SOCKET m_ClientSocket;
+    
+    struct sockaddr_in m_ServerAddr;
     struct sockaddr_in m_ClientAddr;
     struct addrinfo *m_Result;
     struct addrinfo m_Hints;
