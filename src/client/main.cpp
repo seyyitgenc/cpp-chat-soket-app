@@ -2,7 +2,7 @@
 
 int main(int argc, char **argv){
     Client client;
-    client.initEverything(argc, argv) ? client.run() : 0;
+    if (client.initEverything(argc, argv)) client.run(); else  return EXIT_FAILURE;
     client.close();
     return 0;
 }

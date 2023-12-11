@@ -1,42 +1,39 @@
 #pragma once
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <wspiapi.h>
-#include <stdio.h>
-#include <iostream>
+#include "globals.h"
+
 #include <string>
 
-#define DEFAULT_ADDR_FAMILY     AF_INET
-#define DEFAULT_SERVER          "localhost"
-#define DEFAULT_PORT            "27015"
 #define DEFAULT_SEND_BUF_LEN    32
 #define DEFAULT_RECV_BUF_LEN    10240
 #define DEFAULT_DELAY           1000
+#define DEFAULT_NICKNAME        "anon_user"
 
-typedef struct _ClientContext{
-    BYTE        addr_family;
+class ClientContext{
+public:
+    BYTE        addrFamily;
     const char  *pServer;
     const char  *pPort;
     char        *pSendBuf;
     char        *pRecvBuf;
-    int         send_buf_len;
-    int         recv_buf_len;
+    int         sendBufLen;
+    int         recvBufLen;
     int         delay;
     int         nBytesRemainingToBeSent;
     int         nBytesRecvd;
     SOCKET      sock;
-} ClientContext, *PClientContext;
+    std::string userName;
+};
 
 class Client
 {
 public:
-    Client(): _bPeerShutdown(false){};
+    Client() : _bPeerShutdown(false){};
     ~Client() = default;
 
 public:     // general functions that user can use
     bool    initEverything(int argc, char** argv);
-    bool    run();
+    void    run();
     void    close();
 
 private:    // buffer management functions
@@ -55,11 +52,16 @@ private:    // send and recive functions
     void    doRecvUntilDone();
     void    doShutDown();
 
+private:    // threads
+    void    sendWorker();
+    void    recvWorker();
+
 private:    // init functions
     bool    initCore();
     bool    initSocket();
     bool    parseArgs(int argc, char** argv);
-
+    void    printClientInfo();
+    void    printArgHelp();
 private:
     WSADATA         _wsaData;
     ClientContext   _Context;
