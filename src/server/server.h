@@ -1,126 +1,64 @@
 #pragma once
-    
+
+// TODO: implement log macro or something like that
+#include <vector>
 #include "globals.h"
-#define MAX_CLIENTS 10
+
+#define MAX_CLIENTS FD_SETSIZE
+
+struct DataBuffer {
+public:
+    char  *pSendBuf;
+    char  *pRecvBuf;
+    int dataSize;
+    int sendOffset;
+    bool isNewData;
+};
+
+struct ClientList{
+public:
+    SOCKET sock;
+    DataBuffer db;
+    
+};
+
+struct ServerContext {
+public:
+    SOCKET sock;
+    BYTE addrFamily;
+    const char *pInterface;
+    const char *pPort;
+    std::vector<ClientList> cList; // this will hold clients
+    // todo : implement multiple listening sockets
+    //! so what we need to do is create a struct that holds general socket info 
+};
+
 
 class Server
 {
-private:
-    Server() = default;
 public:
+    Server() = default;
     ~Server() = default;
-    // Singleton
-    static Server *getInstance()
-    {
-        if (m_instance == nullptr)
-        {
-            printf("Server instance created\n");
-            m_instance = new Server();
-        }
-        return m_instance;
-    }
-
-    bool init(){
-        m_iResult = WSAStartup(MAKEWORD(2,2),&m_WsaData);
-        if (m_iResult != 0)
-        {
-            printf("WSAStartup failed: %d\n", m_iResult);
-            return false;
-        }
-
-        ZeroMemory(&m_Hints, sizeof(m_Hints));
-        m_Hints.ai_family   = AF_INET;
-        m_Hints.ai_socktype = SOCK_STREAM;
-        m_Hints.ai_protocol = IPPROTO_TCP;
-        m_Hints.ai_flags    = AI_PASSIVE;
-
-        // resolve the local address port to be used by the server  
-        m_iResult = getaddrinfo(NULL, DEFAULT_PORT, &m_Hints, &m_Result);
-        if (m_iResult != 0)
-        {
-            printf("getaddrinfo failed: %d\n", m_iResult);
-            return false;
-        }
-
-        // create socket
-        m_ListenSocket = INVALID_SOCKET;
-        m_ListenSocket = socket(m_Result->ai_family, m_Result->ai_socktype, m_Result->ai_protocol);
-        if (m_ListenSocket == INVALID_SOCKET)
-        {
-            printf("Error at socket(): %d\n", WSAGetLastError());
-            return false;
-        }
-
-        // setup the TCP listening socket
-        m_iResult = bind(m_ListenSocket, m_Result->ai_addr, (int)m_Result->ai_addrlen);
-        if (m_iResult == SOCKET_ERROR){
-            printf("bind failed with error: %d\n",WSAGetLastError());
-            return false;
-        }
-
-        freeaddrinfo(m_Result);
-        
-        if (listen(m_ListenSocket, SOMAXCONN) == SOCKET_ERROR){
-            printf("Listen failed with error: %d\n",WSAGetLastError());
-            return false;
-        }
-
-        // make it non blocking
-        // ioctlsocket(m_ListenSocket, FIONBIO, (u_long *)1);
-        return true;
-    };
+public:
+    bool initEverything(int argc, char **argv);
+    void run();
+    void close();
     
-    bool run(){
-        printf("Waiting for client to connect\n");
-        int len = sizeof(m_Hints);
-        m_ClientSocket = accept(m_ListenSocket, (sockaddr*)&m_Hints, &len);
-        printf("Client connected\n");
-
-        const char *msg = "Hello from server";
-        while (1)
-        {
-            if (m_ClientSocket == INVALID_SOCKET){
-                printf("accept failed: %d\n", WSAGetLastError());
-                return false;
-            }
-            printf("Waiting for data\n");
-            fflush(stdout);
-            memset(m_Recvbuf, '\0', DEFAULT_BUFLEN);
-            if(recv(m_ClientSocket, m_Recvbuf, DEFAULT_BUFLEN, 0) == SOCKET_ERROR){
-                printf("recv failed: %d\n", WSAGetLastError());
-                return false;
-            }
-            printf("Recieved packet from %s:%d\n", inet_ntoa(m_ClientAddr.sin_addr), ntohs(m_ClientAddr.sin_port));
-            printf("Data: %s\n", m_Recvbuf);
-            if(send(m_ClientSocket,msg,strlen(msg), 0) == SOCKET_ERROR){
-                printf("send failed: %d\n", WSAGetLastError());
-                return false;
-            }
-        }
-    };
-    void close(){
-        closesocket(m_ClientSocket);
-        closesocket(m_ListenSocket);
-        WSACleanup();
-    };
 private:
-    static Server *m_instance;
-
+    bool parseArgs(int argc, char **argv);
+    bool initCore();
+    bool initListeningSockets();
+    bool isRunning();
+    // bool sendAllTarget(); // sends message to all clients. this will iterate over client list
+    // bool sendOneTarget(Client target ); // note: this will take an argument 
+    
+    void acceptWorker();
+    void sendWorker();
 private:
-    // bool wsaStarted = false;
-
-    WSADATA m_WsaData;
-    SOCKET m_ListenSocket;
-    SOCKET m_ClientSocket;
-    
-    struct sockaddr_in m_ServerAddr;
-    struct sockaddr_in m_ClientAddr;
-    struct addrinfo *m_Result;
-    struct addrinfo m_Hints;
-    
-    char m_Recvbuf[DEFAULT_BUFLEN];
-    char m_Sendbuf[DEFAULT_BUFLEN];
-    int m_iResult;
+    WSAData _wsaData;
+    bool _bInitCore;
+    bool _bInitSocket;
+    bool _bParseArgs;
+    bool _bIsRunning;
+    ServerContext _Context;
 };
-
-Server *Server::m_instance = nullptr;

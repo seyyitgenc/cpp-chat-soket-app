@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 project(socketapp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -g -O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++23 -g -O0")
 
 
 # Gather all source files in src/client and src/server
