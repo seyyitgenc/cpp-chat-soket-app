@@ -7,7 +7,7 @@
 #define DEFAULT_SEND_BUF_LEN    32
 #define DEFAULT_RECV_BUF_LEN    10240
 #define DEFAULT_DELAY           1000
-#define DEFAULT_NICKNAME        "anon_user"
+#define DEFAULT_USERNAME        "astolfo"
 
 class ClientContext{
 public:
@@ -61,7 +61,7 @@ private:    // init functions
     bool    initSocket();
     bool    parseArgs(int argc, char** argv);
     void    printClientInfo();
-    void    printArgHelp();
+    void    printHelp();
 private:
     WSADATA         _wsaData;
     ClientContext   _Context;

@@ -2,41 +2,56 @@
 
 #include <thread>
 #include <random>
-
-// FIXME: there is a deadlock bug can implement multithreaded approach
+#include <regex>
 
 // todo : add assert for initialization functions
 
 // ---------------
 // init everything
 // ---------------
-bool Client::initEverything(int argc, char **argv){
-    parseArgs(argc, argv) ? 
-        std::cout << "Arguments parsed successfully!\n" :
-        std::cout << "Argument parsing failed!\n";
-    
+bool Client::initEverything(int argc, char **argv)
+{
     initCore() ?
         std::cout << "Client core initialized successfully!\n" :
         std::cout << "Client core initialization failed!\n";
-    
-    initSocket() ? 
+
+    parseArgs(argc, argv) ?
+        std::cout << "Arguments parsed successfully!\n" :
+        std::cout << "Argument parsing failed!\n";
+
+    if (_bParseArgs)
+        initSocket() ?
         std::cout << "Client socket initialized successfully!\n" :
         std::cout << "Client socket initialization failed!\n";
 
     return _bInitCore && _bInitSocket && _bParseArgs;
 }
+
+// -------------------------
+// simple argument validator
+// -------------------------
+bool isValidArgParameter(char *arg)
+{
+    std::basic_regex reg("[^a-zA-Z0-9]");
+    // if given argument is contains special chars it will fail
+    if (std::regex_search(arg,reg))
+        return false;
+    return true;
+}
+
 // ---------------------------------
 // parse the arguments given by user
 // ---------------------------------
-bool Client::parseArgs(int argc, char **argv){
+bool Client::parseArgs(int argc, char **argv)
+{
     //! this is a easy version of a argument parser
     //! it's only supports the following arguments:
-    //! -s <server> -p <port>
+    //! -s <server> -p <port> -u <username> -h for help
     // todo: later on implement these aswell : -d <delay> -l <sendBufLen> -r <recvBufLen>
     std::cout << "Parsing arguments...\n";
 
     _bParseArgs = true;
-    
+
     _Context.addrFamily     =   DEFAULT_ADDR_FAMILY;
     _Context.pServer        =   DEFAULT_SERVER;
     _Context.pPort          =   DEFAULT_PORT;
@@ -45,17 +60,18 @@ bool Client::parseArgs(int argc, char **argv){
     _Context.delay          =   DEFAULT_DELAY;
 
     // note : this is not reliable solution
+    // randomized username
     std::random_device rd;
     std::uniform_int_distribution<int> dist(1,1000);
-    _Context.userName = DEFAULT_NICKNAME + std::to_string(dist(rd));
-    
-    // fixme: argument parse still needs improvements
+    _Context.userName = DEFAULT_USERNAME + std::to_string(dist(rd));
+
     for (int i = 1; i < argc; i++){
         char firstChar = argv[i][0];
-        // make sure first char starts with '-' or '/'
-        if (!(firstChar == '-' || firstChar == '/'))
+        // make sure first char starts with '-'
+        if (!(firstChar == '-'))
         {
-            std::cout << "ERROR: Parsing failed! Option has to begin with - or / : " <<  argv[i] << std::endl;
+            std::cout << "ERROR: Parsing failed! Option has to begin with '-' : " <<  argv[i] << std::endl;
+            _bParseArgs = false;
             break;
         }
         switch (argv[i][1])
@@ -64,39 +80,57 @@ bool Client::parseArgs(int argc, char **argv){
             if (i + 1 >= argc)
             {
                 std::cout << "ERROR: Parsing failed! Server name needed for -s option.\n";
-                printArgHelp();
-                return false;
+                printHelp();
+                _bParseArgs = false;
             }
             else
                 i++;
-            _Context.pServer = argv[i]; 
+            if (isValidArgParameter(argv[i]))
+                _Context.pServer = argv[i];
+            else{
+                std::cout << "ERROR: Parsing failed! Server name needed for -s option.\n";
+                _bParseArgs = false;
+            }
             break;
         case 'p':
             if (i + 1 >= argc)
             {
                 std::cout << "ERROR: Parsing failed! Port number needed for -p option.\n";
-                printArgHelp();
-                return false;
+                printHelp();
+                _bParseArgs = false;
             }
             else
                 i++;
-            _Context.pPort = argv[i];
+            if (isValidArgParameter(argv[i]))
+                _Context.pPort = argv[i];
+            else{
+                _bParseArgs = false;
+                std::cout << "ERROR: Parsing failed. Port number needed for -p option.";
+            }
             break;
         case 'u':
             if (i + 1 >= argc)
             {
                 std::cout   << "ERROR: Parsing failed! User name needed for -u option.\n";
-                return false;
+                _bParseArgs = false;
             }
             else
                 i++;
-            _Context.userName = argv[i];
+            if (isValidArgParameter(argv[i]))
+                _Context.userName = argv[i];
+            else{
+                _bParseArgs = false;
+                std::cout << "ERROR: Parsing failed. User name needed for -u option.";
+            }
             break;
+        // note: temporary solution
         case 'h':
-            printArgHelp();
+            printHelp();
+            _bParseArgs = false;
             break;
         case '?':
-            printArgHelp();
+            printHelp();
+            _bParseArgs = false;
             break;
         default:
             break;
@@ -126,7 +160,7 @@ bool Client::initCore()
 bool Client::initSocket()
 {
     _bInitSocket = false;
-    
+
     struct addrinfo *result = nullptr, *ptr = nullptr, hints;
 
     memset(&hints, 0, sizeof(hints));
@@ -180,13 +214,6 @@ bool Client::initSocket()
 // ---------------------
 void Client::run()
 {
-    // while (!_bPeerShutdown)
-    // {
-    //     prepareSendBuf();
-    //     prepareRecvBuf();
-    //     doSendOnce();
-    //     doRecvOnce();
-    // }
     std::thread sendThread = std::thread(&Client::sendWorker,this);
     sendThread.detach(); // detach from current thread
 
@@ -218,7 +245,6 @@ bool Client::prepareSendBuf()
         memset(_Context.pSendBuf, 'H', _Context.sendBufLen);
         _Context.pSendBuf[_Context.sendBufLen] = '\0'; // nullptr terminate the string
         _Context.nBytesRemainingToBeSent = _Context.sendBufLen;
-
         bSuccess = true;
     }
     std::cout << "Send buffer prepared.\n";
@@ -252,10 +278,9 @@ bool Client::prepareRecvBuf()
     {
         memset(_Context.pRecvBuf, 0, _Context.recvBufLen + 1);
         _Context.nBytesRecvd = 0;
-
         bSuccess = true;
     }
-    
+    std::cout << "Recv buffer prepared.\n";
     return bSuccess;
 }
 
@@ -291,7 +316,8 @@ int Client::doSendOnce(){
 // -----------------------------------------------------------------
 // this functions will recieve all data at once
 // -----------------------------------------------------------------
-int Client::doRecvOnce(){
+int Client::doRecvOnce()
+{
     std::cout << "Recieving data...\n";
     int nbytesRecv = recv(_Context.sock, _Context.pRecvBuf, _Context.recvBufLen, 0);
 
@@ -309,46 +335,64 @@ int Client::doRecvOnce(){
 // note: this is a half close
 // note: this prevents client sending data to server but server can still send data to client
 // ------------------------------------------------------------------------------------------
-void Client::doShutDown(){
+void Client::doShutDown()
+{
     if(shutdown(_Context.sock, SD_SEND) == SOCKET_ERROR)
         std::cout << "shutdown failed with Error:: %d\n", WSAGetLastError();
     else
         std::cout << "shutdown successful!\n";
 }
 
-
 // -----------------------------------------------
 // worker for multi threaded approach to send data
 // -----------------------------------------------
-void Client::sendWorker(){
+void Client::sendWorker()
+{
+    // todo: add terminate flag
+    while (!_bPeerShutdown)
+    {
+        if(prepareSendBuf()) 
+            doSendUntilDone();
+        else
+            std::cout << "failed to prepare send buf \n";
+    }
 
 };
+
 // -----------------------------------------------
 // worker for multi threaded approach to recv data
 // -----------------------------------------------
+void Client::recvWorker()
+{
+    while (!_bPeerShutdown)
+    {
+        if(prepareRecvBuf()) 
+            doRecvUntilDone();
+        else
+            std::cout << "failed to prepare recv buf \n";
 
-void Client::recvWorker(){
-
+    }
 };
 
 // ---------------------------------------------------------
 // Client will accept data only once and send data only once
 // ---------------------------------------------------------
-void Client::doSendThenRecv(){
-    
+void Client::doSendThenRecv()
+{
     doSendUntilDone();
     // doShutDown();
     doRecvUntilDone();
 }
 
-
 // ---------------------------------------------------------
 // Client will accept data until there is no more data left
 // ---------------------------------------------------------
-void Client::doSendUntilDone(){
+void Client::doSendUntilDone()
+{
     std::cout << "Sending data...\n";
     int retries = 0;
     const int maxRetries = 5;
+    // todo: set a flag here to terminate the program
     do
     {
         int err = doSendOnce();
@@ -357,7 +401,7 @@ void Client::doSendUntilDone(){
         case 0: // all data is sent
             std::cout << "all bytes send successfully!\n";
             return;
-    
+
         case WSAEWOULDBLOCK: // our data cannot fin it the send buffer
             std::cout << "send buffer is full, waiting for a while...\n";
             Sleep(_Context.delay);
@@ -378,7 +422,8 @@ void Client::doSendUntilDone(){
     } while (1);
 }
 
-void Client::doRecvUntilDone(){
+void Client::doRecvUntilDone()
+{
     std::cout << "Waiting for data...\n";
     int err;
     int totalBytesReceived = 0;
@@ -420,8 +465,9 @@ void Client::doRecvUntilDone(){
     } while (1);
 }
 
-void Client::printClientInfo(){
-    std::cout 
+void Client::printClientInfo()
+{
+    std::cout
             << "\n"
             << "            Client Info\n"
             << "----------------------------------\n"
@@ -432,6 +478,13 @@ void Client::printClientInfo(){
             << "----------------------------------\n";
 }
 
-void Client::printArgHelp(){
-    std::cout << "ENTERED ARGUMENT HELP !!!!!!!!!!!!!" << std::endl; 
+void Client::printHelp()
+{
+    std::cout
+            << "\n----------------------------------------------------\n"
+            << "for server name : -s <server> (by default localhost)\n"
+            << "for port number : -p <port> (by default 27015)\n"
+            << "for user name   : -u <username> (by default anon)\n"
+            << "for help -h or -?\n"
+            << "----------------------------------------------------\n";
 }
