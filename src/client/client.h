@@ -14,7 +14,7 @@ public:
     BYTE        addrFamily;
     const char  *pServer;
     const char  *pPort;
-    char        *pSendBuf;
+    char        pSendBuf[DEFAULT_SEND_BUF_LEN];
     char        *pRecvBuf;
     int         sendBufLen;
     int         recvBufLen;
@@ -53,8 +53,8 @@ private:    // send and recive functions
     void    doShutDown();
 
 private:    // threads
-    void    sendWorker();
-    void    recvWorker();
+    void    sendHandler();
+    void    recvHandler();
 
 private:    // init functions
     bool    initCore();

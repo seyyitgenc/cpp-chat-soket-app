@@ -3,6 +3,7 @@
 #include <thread>
 #include <random>
 #include <regex>
+#include <limits>
 
 // todo : add assert for initialization functions
 
@@ -214,10 +215,19 @@ bool Client::initSocket()
 // ---------------------
 void Client::run()
 {
-    std::thread sendThread = std::thread(&Client::sendWorker,this);
+
+    auto iSend = send(_Context.sock, _Context.userName.c_str(), strlen(_Context.userName.c_str()), 0);
+    if (iSend == SOCKET_ERROR)
+    {
+        std::cout << "Sending Failed " << "\n";
+        std::cout << "Error No-> " << WSAGetLastError() << "\n";
+        return;
+    }
+
+    std::thread sendThread = std::thread(&Client::sendHandler,this);
     sendThread.detach(); // detach from current thread
 
-    std::thread recvThread = std::thread(&Client::recvWorker,this);
+    std::thread recvThread = std::thread(&Client::recvHandler,this);
     recvThread.join(); // join to current
 
     std::cout << "Client Shutting Down...! \n";
@@ -236,19 +246,22 @@ void Client::close()
 // ---------------------
 bool Client::prepareSendBuf()
 {
-    bool bSuccess = false;
-    _Context.pSendBuf = (char*) malloc(_Context.sendBufLen + 1);
-    if(_Context.pSendBuf == nullptr)
-        std::cout << "malloc failed.\n";
-    else
-    {
-        memset(_Context.pSendBuf, 'H', _Context.sendBufLen);
-        _Context.pSendBuf[_Context.sendBufLen] = '\0'; // nullptr terminate the string
-        _Context.nBytesRemainingToBeSent = _Context.sendBufLen;
-        bSuccess = true;
-    }
-    std::cout << "Send buffer prepared.\n";
-    return bSuccess;
+   
+    
+    // bool bSuccess = false;
+    // _Context.pSendBuf = (char*) malloc(_Context.sendBufLen + 1);
+    // if(_Context.pSendBuf == nullptr)
+    //     std::cout << "malloc failed.\n";
+    // else
+    // {
+    //     memset(_Context.pSendBuf, 'H', _Context.sendBufLen);
+    //     _Context.pSendBuf[_Context.sendBufLen] = '\0'; // nullptr terminate the string
+    //     _Context.nBytesRemainingToBeSent = _Context.sendBufLen;
+    //     bSuccess = true;
+    // }
+    // std::cout << "Send buffer prepared.\n";
+    // return bSuccess;
+    return true;
 }
 
 // ---------------------
@@ -256,12 +269,12 @@ bool Client::prepareSendBuf()
 // ---------------------
 void Client::freeSendBuf()
 {
-    if (_Context.pSendBuf != nullptr)
-    {
-        free(_Context.pSendBuf);
-        std::cout << "Freed send buffer.\n";
-        _Context.pSendBuf = nullptr;
-    }
+    // if (_Context.pSendBuf != nullptr)
+    // {
+    //     free(_Context.pSendBuf);
+    //     std::cout << "Freed send buffer.\n";
+    //     _Context.pSendBuf = nullptr;
+    // }
 }
 
 // ---------------------
@@ -344,33 +357,53 @@ void Client::doShutDown()
 }
 
 // -----------------------------------------------
-// worker for multi threaded approach to send data
+// Handler for multi threaded approach to send data
 // -----------------------------------------------
-void Client::sendWorker()
+void Client::sendHandler()
 {
     // todo: add terminate flag
-    while (!_bPeerShutdown)
+    std::string data;
+    do
     {
-        if(prepareSendBuf()) 
-            doSendUntilDone();
-        else
-            std::cout << "failed to prepare send buf \n";
-    }
-
+        std::cout << _Context.userName << " : ";
+        std::getline(std::cin, data);
+        if (data.size() > 0)
+        {
+            data = _Context.userName + ": " + data;
+            std::cout << "\nI am sending this data :" << data << std::endl;
+            if (send(_Context.sock, data.c_str(), strlen(data.c_str()), 0) == SOCKET_ERROR)
+            {
+                std::cout << "send failed: " << WSAGetLastError() << "\n";
+                close();
+                return;
+            }
+        }
+    } while (data.size() > 0);
 };
 
 // -----------------------------------------------
-// worker for multi threaded approach to recv data
+// Handler for multi threaded approach to recv data
 // -----------------------------------------------
-void Client::recvWorker()
+void Client::recvHandler()
 {
-    while (!_bPeerShutdown)
+    while (true)
     {
-        if(prepareRecvBuf()) 
-            doRecvUntilDone();
-        else
-            std::cout << "failed to prepare recv buf \n";
-
+        char recvbuf[512];
+        ZeroMemory(recvbuf, 512);
+        auto iRecv = recv(_Context.sock, recvbuf, 512, 0);
+        if (iRecv > 0)
+        {
+            std::cout << '\r';
+            std::cout << recvbuf << "\n";
+        }
+        else if (iRecv == 0) {
+            std::cout << "Connection closed" << "\n";
+            return;
+        }
+        else {
+            std::cout << "recv failed: " << WSAGetLastError() << "\n";
+            return;
+        }
     }
 };
 
@@ -465,6 +498,9 @@ void Client::doRecvUntilDone()
     } while (1);
 }
 
+// ------------------
+// Prints server info
+// ------------------
 void Client::printClientInfo()
 {
     std::cout
@@ -478,6 +514,9 @@ void Client::printClientInfo()
             << "----------------------------------\n";
 }
 
+// ---------------------------
+// Prints how to use arguments
+// ---------------------------
 void Client::printHelp()
 {
     std::cout
