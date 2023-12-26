@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 project(socketapp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g -O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -g -O0")
 
 
 # Gather all source files in src/client and src/server
@@ -18,6 +18,9 @@ add_executable(client ${CLIENT_SOURCES} ${COMMON_SOURCES})
 if(WIN32)
   target_link_libraries(server wsock32 ws2_32)
   target_link_libraries(client wsock32 ws2_32)
+elseif(UNIX)
+  target_link_libraries(server pthread dl)
+  target_link_libraries(client pthread dl)
 endif()
 
 target_include_directories(server PUBLIC src/common)
