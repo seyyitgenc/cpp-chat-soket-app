@@ -1,13 +1,17 @@
 #pragma once
 
 // TODO: implement log macro or something like that
+
+#include <cstring>
+#include <unordered_map>
 #include <vector>
-#include <set>
 #include "globals.h"
+
 #define MAX_CLIENTS FD_SETSIZE
 
 #define DEFAULT_SEND_BUF_LEN    512
 #define DEFAULT_RECV_BUF_LEN    1024
+
 
 struct DataBuffer {
 public:
@@ -26,9 +30,7 @@ public:
     const char *pInterface;
     const char *pPort;
 
-    FD_SET readFDSet;
-    // todo : implement multiple listening sockets
-    //! so what we need to do is create a struct that holds general socket info
+    std::vector<std::pair<std::string,SOCKET>> clientList;
 };
 
 class Server
@@ -59,9 +61,11 @@ private:
 private: // helpers
     void printHelp();
     void printServerInfo();
-
+    void printAddressString(LPSOCKADDR pSockAddr, DWORD dwSockAddrLen);
 private:
+#ifdef _WIN64
     WSAData _wsaData;
+#endif
     bool _bInitCore;
     bool _bInitSocket;
     bool _bParseArgs;
