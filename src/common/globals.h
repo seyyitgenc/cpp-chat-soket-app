@@ -8,8 +8,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/types.h> 
-
+#include <sys/types.h>
+#include <sys/select.h> 
+#include <sys/time.h>
+typedef unsigned int SOCKET;
+typedef struct sockaddr		*LPSOCKADDR;
+typedef unsigned long DWORD;
+typedef unsigned char BYTE;
 #endif
 
 #include <iostream>

@@ -2,10 +2,9 @@
 
 #include <thread>
 #include <regex>
-#include <deque>
+#include <random>
 
-bool Server::initEverything(int argc, char **argv)
-{
+bool Server::initEverything(int argc, char **argv){
     _bIsRunning = false;
     parseArgs(argc, argv) ?
         printf("Arguments parsed successfully!\n") :
@@ -28,8 +27,7 @@ bool Server::initEverything(int argc, char **argv)
 // -------------------------
 // simple argument validator
 // -------------------------
-bool isValidArgParameter(char *arg)
-{
+bool isValidArgParameter(char *arg){
     std::regex reg("[^a-zA-Z0-9]");
     if (std::regex_search(arg,reg))
         return false;
@@ -39,8 +37,7 @@ bool isValidArgParameter(char *arg)
 // ---------------------------------
 // parse the arguments given by user
 // ---------------------------------
-bool Server::parseArgs(int argc, char **argv)
-{
+bool Server::parseArgs(int argc, char **argv){
     printf("Parsing Arguments...\n");
 
     _Context.addrFamily =   DEFAULT_ADDR_FAMILY;
@@ -49,11 +46,9 @@ bool Server::parseArgs(int argc, char **argv)
 
     _bParseArgs = true;
 
-    for (int i = 1; i < argc; i++)
-    {
+    for (int i = 1; i < argc; i++){
         char firstChar = argv[i][0];
-        if (!(firstChar == '-'))
-        {
+        if (!(firstChar == '-')){
             std::cout << "ERROR: Parsing failed! Option has to begin with '-' :" << argv[i] << std::endl;
             _bParseArgs = false;
             break; 
@@ -61,8 +56,7 @@ bool Server::parseArgs(int argc, char **argv)
         switch (argv[i][1])
         {
         case 's':
-            if (i + 1 >= argc)
-            {
+            if (i + 1 >= argc){
                 std::cout << "ERROR: Parsing failed! Server name needed for -s option.\n";
                 printHelp();
                 _bParseArgs = false;
@@ -77,8 +71,7 @@ bool Server::parseArgs(int argc, char **argv)
             }
             break;
         case 'p':
-            if (i + 1 >= argc)
-            {
+            if (i + 1 >= argc){
                 std::cout << "ERROR: Parsing failed! Port number needed for -p option.\n";
                 printHelp();
                 _bParseArgs = false;
@@ -112,8 +105,7 @@ bool Server::parseArgs(int argc, char **argv)
 // ---------------
 // Initialize Core
 // ---------------
-bool Server::initCore()
-{
+bool Server::initCore(){
     _bInitCore = true;
 #ifdef _WIN64
     printf("Initializing client core...\n");
@@ -127,8 +119,7 @@ bool Server::initCore()
 // todo: add multiple listening socket support 
 // Initialize Listening Socket(s) for now it's initialize only one listening socket
 // -------------------------------------------------------------------------------
-bool Server::initListeningSockets()
-{
+bool Server::initListeningSockets(){
     _bInitSocket = true;
 
     unsigned long nonBlocking = 1;
@@ -143,27 +134,23 @@ bool Server::initListeningSockets()
     hints.ai_socktype   =   SOCK_STREAM;
     hints.ai_flags      =   AI_PASSIVE;
 
-    if (getaddrinfo(_Context.pInterface, _Context.pPort, &hints, &result) != 0)
-    {
+    if (getaddrinfo(_Context.pInterface, _Context.pPort, &hints, &result) != 0){
         printf("getaddrinfo failed. Error = %d\n", WSAGetLastError());
         _bInitSocket = false;
         if (result)
             freeaddrinfo(result);
         return _bInitSocket;
     }
-    for (ptr = result; ptr != nullptr; ptr = ptr->ai_next)
-    {
+    for (ptr = result; ptr != nullptr; ptr = ptr->ai_next){
         newSock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-        if (newSock == INVALID_SOCKET)
-        {
+        if (newSock == INVALID_SOCKET){
             printf("socket failed. Error = %d\n", WSAGetLastError());
             printf("Ignoring this address and continuing with the next. \n\n");
         }
 
         printf("Created socket with handle = %d\n", newSock);
 
-        if (bind(newSock, ptr->ai_addr, ptr->ai_addrlen))
-        {
+        if (bind(newSock, ptr->ai_addr, ptr->ai_addrlen)){
             printf("bind failed. Error = %d\n",WSAGetLastError());
             closesocket(newSock);
             continue;
@@ -171,8 +158,7 @@ bool Server::initListeningSockets()
 
         printf("Socket Bound Succesfully\n");
 
-        if (listen(newSock, MAX_CLIENTS) != 0)
-        {
+        if (listen(newSock, MAX_CLIENTS) != 0){
             printf("listen failed. Error = %d\n", WSAGetLastError());
             closesocket(newSock);
             continue;
@@ -193,18 +179,16 @@ bool Server::initListeningSockets()
     return _bInitSocket;
 }
 
-
 // ------------------
 // Server entry point
 // ------------------
-void Server::run()
-{
-    // FD_ZERO(&_Context.readFDSet);
+void Server::run(){
     std::thread acceptThread = std::thread(&Server::acceptHandler,this);
     acceptThread.detach();
 
     std::thread sendThread = std::thread(&Server::sendHandler,this);
     sendThread.join();
+
     // this line will not printed until sendThread finishes
     printf("Program terminated\n");
 }
@@ -216,81 +200,39 @@ void Server::connectionHandler(SOCKET clientSock){
     // note: maybe i can do isConnectionClosed here
 
     // main loop for the client
-    while (true)
-    {
+    while (true){
         // todo: check isNewData here
-        // fixme: we assume all data is recieved. this will be a problem
-        memset(&_Context.recdData, 0, sizeof(_Context.recdData));
+        // fixme: we assume all data is recieved. this can be a problem
 
-        int error = recv(clientSock, _Context.recdData.buf, DEFAULT_RECV_BUF_LEN, 0);
-        // std::cout << "\n I recieved this data : " << _Context.recdData.buf << std::endl;
-        if (error > 0)
-        {
-            std::cout << _Context.recdData.buf << "\n";
+        char buf[DEFAULT_RECV_BUF_LEN];
+        int error = recv(clientSock, buf, DEFAULT_RECV_BUF_LEN, 0);
 
-            for (auto i = _Context.clientList.begin(); i != _Context.clientList.end(); i++)
-                if (i->second != clientSock)
-                    send(i->second, _Context.recdData.buf,strlen(_Context.recdData.buf),0);
-        }
-        else if(error == 0){
-            
-            _Context.clientList.erase(
-                std::remove_if(_Context.clientList.begin(), _Context.clientList.end(),
-                [clientSock](const auto &pair){ return clientSock == pair.second; })
-                ,_Context.clientList.end());
-
-            std::cout << "Client disconnected " << "\n";
-            std::cout << "Server : ";
-            for (auto i = _Context.clientList.begin(); i != _Context.clientList.end(); i++)
-            {
-                char disconnected[] = "Server : A client disconnected";
-                send(i->second, disconnected, strlen(disconnected),0);
-            }
-            return;
-        }
-        else{
-            _Context.clientList.erase(
-                std::remove_if(_Context.clientList.begin(),_Context.clientList.end(),
-                [clientSock](const auto &pair){ return clientSock == pair.second; })
-                ,_Context.clientList.end());
-
-            std::cout << "Client recv failed  " << WSAGetLastError() << "\n";
-            std::cout << "Server : ";
-
-            for (auto i = _Context.clientList.end(); i != _Context.clientList.end(); i++)
-            {
-                std::string disconnected = "Server : A client disconnected";
-                send(i->second, disconnected.c_str(), disconnected.size(), 0);
-            }
-            return;
-        }
+        _Context.recdData.buf = buf;
+        if (!parseMessage(clientSock, error)) return;
     }
 }
-
-
 
 // ----------------------------------------------
 // Accepts connection with multithreaded approach
 // ----------------------------------------------
 void Server::acceptHandler(){
-    while (true)
-    {
+    while (true){
         SOCKADDR_STORAGE clientAddress;
         int clientAddressLen = sizeof(clientAddress);
         SOCKET clientSock = accept(_Context.sock, (LPSOCKADDR)(&clientAddress), &clientAddressLen);
-        if (clientSock == INVALID_SOCKET)
-        {
+        if (clientSock == INVALID_SOCKET){
             std::cout << "ERROR: Accept failed with error code : " << WSAGetLastError() << "\n";
             closesocket(clientSock);
             continue;
         }
         else{
+            // get username here
             char temp[50];
             ZeroMemory(temp, 50);
             int bytesReceived = recv(clientSock, temp, sizeof(temp), 0);
             std::string clientName;
             clientName = temp; 
-            // iterate over all client list pairs
+            // iterate over all client pairs
             bool exist = false;
             for (auto &&i : _Context.clientList){
                 // note: we don't need to check for socket. 
@@ -301,10 +243,14 @@ void Server::acceptHandler(){
                     break;
                 }
             }
-            if (exist)
-            {
-                const char *buf = "This username is already in use. Please try different username or reconnect later.";
-                send(clientSock,buf,strlen(buf),0);
+            if (_Context.clientList.size() >= MAX_CLIENTS){
+                std::string buf = "Server Room is full. Pls try again later.";
+                send(clientSock, buf.c_str(), buf.size(),0);
+            }
+            
+            if (exist){
+                std::string buf = "This username is already in use. Please try different username or reconnect later.";
+                send(clientSock, buf.c_str(), buf.size(),0);
                 closesocket(clientSock);
                 std::cout << "Client try to connect with the existing username! Connection closed.\n"; 
                 continue;
@@ -313,20 +259,20 @@ void Server::acceptHandler(){
                 // we created new thread for client.
                 std::thread clientThread = std::thread(&Server::connectionHandler,this,clientSock);
                 clientThread.detach();
-                // todo: i used 2 structure to hold clients. one is fd_set, one is std::map
-                // todo: this can be resolved with easy doubly linked list.
+
                 _Context.clientList.push_back(std::make_pair(clientName, clientSock));
 
+                // prints client info
                 printAddressString((LPSOCKADDR)(&clientAddress), clientAddressLen);
 
-                std::string msg = "Server: Welcome ";
+                std::string msg = "Server : Welcome ";
                 msg = msg + clientName;
+
                 // sends welcome message to other clients
                 for (auto i = _Context.clientList.begin(); i != _Context.clientList.end(); i++)
                     send(i->second, msg.c_str(), strlen(msg.c_str()), 0);
                 
                 std::cout << clientName << " connected" << "\n";
-                std::cout << "Server : ";
             }
         }
     }
@@ -337,16 +283,12 @@ void Server::acceptHandler(){
 // ----------------------------------------------
 void Server::sendHandler(){
     std::string data;
-    do
-    {
-        std::cout << "Server : ";
+    do{
         std::getline(std::cin,data);
         data = "Server: " + data;
-        for (auto i = _Context.clientList.begin(); i != _Context.clientList.end(); i++)
-        {
+        for (auto i = _Context.clientList.begin(); i != _Context.clientList.end(); i++){
             int error = send(i->second, data.c_str(), strlen(data.c_str()),0);
-            if (error == SOCKET_ERROR)
-            {
+            if (error == SOCKET_ERROR){
                 std::cout << "send to client " << i->first << " with socket " << i->second 
                 << "failed with: " << WSAGetLastError() << "\n";
             }
@@ -355,16 +297,14 @@ void Server::sendHandler(){
 }
 
 
-bool Server::isRunning()
-{
+bool Server::isRunning(){
     return _bIsRunning;
 }
 
 // -------
 // Cleanup
 // -------
-void Server::close()
-{
+void Server::close(){
     if (_bInitCore)
         WSACleanup();
     if (_bInitSocket)
@@ -392,8 +332,7 @@ void Server::printAddressString(LPSOCKADDR pSockAddr, DWORD dwSockAddrLen){
 // ------------------
 // Prints server info
 // ------------------
-void Server::printServerInfo()
-{
+void Server::printServerInfo(){
     std::cout
             << "\n"
             << "            Server Info\n"
@@ -406,12 +345,131 @@ void Server::printServerInfo()
 // ---------------------------
 // Prints how to use arguments
 // ---------------------------
-void Server::printHelp()
-{
+void Server::printHelp(){
     std::cout 
         << "\n----------------------------------------------------\n"
         << "for interface name : -s <interface> (by default localhost)\n"
         << "for port number : -p <port> (by default 27015)\n"
         << "for help -h or -?\n"
         << "----------------------------------------------------\n";
+}
+
+bool Server::parseMessage(SOCKET sock, int error){
+
+    std::stringstream stream(_Context.recdData.buf); // user input
+
+    std::string command, username, message, parityBits, crcBits;
+    std::getline(stream, command, ' ');
+    std::getline(stream, username, ' ');
+    std::getline(stream, message, '|');
+    // Remove leading and trailing whitespaces
+    message.erase(0, message.find_first_not_of(' ')); 
+    message.erase(message.find_last_not_of(' ') + 1);
+    std::getline(stream, parityBits, '|');
+    parityBits.erase(0, parityBits.find_first_not_of(' ')); 
+    parityBits.erase(parityBits.find_last_not_of(' ') + 1);
+    std::getline(stream, crcBits);
+    crcBits.erase(0, crcBits.find_first_not_of(' ')); 
+    crcBits.erase(crcBits.find_last_not_of(' ') + 1);
+   
+    std::cout   << "\n---------  DEBUG INFO -----------\n"
+                << "command : " << command  << "\n"
+                << "target  : " << username << "\n"
+                << "message : " << message  << "\n"
+                << "parity  : " << parityBits << "\n"
+                << "crcbits : " << crcBits << "\n";
+                
+    if(command == "/MESG" && error > 0){
+        bool bTargetExist = false;
+        message = username + ": " + message;
+        for (auto &&i : _Context.clientList)
+        {
+            // send the message
+            if (i.first == username){
+                bTargetExist = true;
+
+                std::cout << "I recieved this data : " << _Context.recdData.buf << "\n";
+                std::random_device rd;
+                std::uniform_int_distribution<int> dist(1,10);
+                
+                if (dist(rd) % 2)
+                {
+                    std::cout << "I CORRUPTED THE MESSAGE" << std::endl;
+                    message += "corrupted"; // for now this is proof of concept
+                    _Context.corruptedData.buf = message;
+                }
+                send(i.second, message.c_str(), message.size(), 0);
+                break;
+            }
+        }
+        // user not found. send to user an "user not found message"
+        if (!bTargetExist){
+            std::string err = "user not found !"; 
+            send(sock, err.c_str(), err.size(), 0);
+        }
+    }
+    else if (command == "/CONN"){
+        std::string users = "Clients at server : ";
+        // todo: if there is no user except the user himself send you are alone message. 
+        for (auto &&i : _Context.clientList){
+            if (i.second != sock)
+                users += i.first + " ";
+        }
+        int error = send(sock, users.c_str(), users.size(), 0);            
+        // todo:: handle error
+    }
+    else if(command == "/MERR"){
+        for (auto &&i : _Context.clientList)
+        {
+            // send the message
+            if (i.first == username){
+                send(i.second, _Context.corruptedData.buf.c_str(), _Context.corruptedData.buf.size(), 0);
+                break;
+            }
+        }
+        // return true;
+    }
+    else if(command == "/GONE" || error == 0){
+        std::string goodbyeMsg = "Cya later!";
+        send(sock, goodbyeMsg.c_str(), goodbyeMsg.size(), 0);
+        std::string user;
+        for (auto i = _Context.clientList.begin(); i != _Context.clientList.end(); i++)
+        {
+            if (i->second == sock){
+                user = i->first;
+                _Context.clientList.erase(i);        
+                break;
+            }
+        }
+        
+        std::cout << user << " disconnected" << "\n";
+        for (auto &&i : _Context.clientList)
+        {
+            std::string disconnected = "Server : " + user + " disconnected";
+            send(i.second, disconnected.c_str(), disconnected.size(), 0);
+        }
+        return false;
+    }
+    else{
+        std::string goodbyeMsg = "Cya later!";
+        send(sock, goodbyeMsg.c_str(), goodbyeMsg.size(), 0);
+        std::string user;
+        for (auto i = _Context.clientList.begin(); i != _Context.clientList.end(); i++)
+        {
+            if (i->second == sock){
+                user = i->first;
+                _Context.clientList.erase(i);        
+                break;
+            }
+        }
+        // todo: handle several cases. peer shutdown, conn reset etc...
+        std::cout << user << " disconnected " << "\n";
+        for (auto &&i : _Context.clientList)
+        {
+            std::string disconnected = "Server : " + user + " disconnected";
+            send(i.second, disconnected.c_str(), disconnected.size(), 0);
+        }
+        return false;
+    }
+    return true;
 }

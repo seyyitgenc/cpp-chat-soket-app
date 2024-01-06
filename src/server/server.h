@@ -7,7 +7,7 @@
 #include <vector>
 #include "globals.h"
 
-#define MAX_CLIENTS FD_SETSIZE
+#define MAX_CLIENTS 64
 
 #define DEFAULT_SEND_BUF_LEN    512
 #define DEFAULT_RECV_BUF_LEN    1024
@@ -15,22 +15,23 @@
 
 struct DataBuffer {
 public:
-    char    buf[DEFAULT_RECV_BUF_LEN];
-    int     dataSize;
-    int     sendOffset;
-    bool    isNewData;
+    std::string buf;
+    int dataSize;
+    int sendOffset;
+    bool isNewData;
 };
 
 struct ServerContext {
 public:
     DataBuffer recdData;
+    DataBuffer corruptedData;
     SOCKET sock;
     BYTE addrFamily;
 
     const char *pInterface;
     const char *pPort;
 
-    std::vector<std::pair<std::string,SOCKET>> clientList;
+    std::vector<std::pair<std::string, SOCKET>> clientList;
 };
 
 class Server
@@ -42,6 +43,7 @@ public:
     bool initEverything(int argc, char **argv);
     void run();
     void close();
+    bool parseMessage(SOCKET sock, int error);
 
 private:
     bool parseArgs(int argc, char **argv);
@@ -50,8 +52,6 @@ private:
 
 private:
     bool isRunning();
-    // bool sendAllTarget(); // sends message to all clients. this will iterate over client list
-    // bool sendOneTarget(Client target); // note: this will take an argument
 
 private:
     void connectionHandler(SOCKET clientSock);

@@ -1,8 +1,17 @@
-# This projects is all about socket programming in C++
+# This project is all about socket programming in C++
+
+## Contributers
+
+- 2010213066 Seyyit Muhammet Genc
+- 2010213002 Berkay Atas
+- 2010213029 Abdulhamit Celik
+- Hasbiy Robbiy
 
 ## Build Instructions
 
 To build this project from the command line, follow these steps:
+
+> **NOTE** : UNIX NOT YET SUPPORTED. THIS WILL NOT GOING TO COMPILE
 
 ```sh
 # 1. Navigate to the project directory. if you alread in project directory you  can ignore this:

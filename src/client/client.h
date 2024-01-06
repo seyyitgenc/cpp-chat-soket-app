@@ -2,25 +2,26 @@
 
 #include "globals.h"
 
-#include <string>
-
 #define DEFAULT_SEND_BUF_LEN    32
 #define DEFAULT_RECV_BUF_LEN    10240
 #define DEFAULT_DELAY           1000
-#define DEFAULT_USERNAME        "astolfo"
+#define DEFAULT_USERNAME        "anon"
+
+enum ClientType{
+    SENDER,
+    RECIEVER,
+    NONE
+};
 
 class ClientContext{
 public:
+    std::string sendBuf;
+    std::string recvBuf;
+    
     BYTE        addrFamily;
     const char  *pServer;
     const char  *pPort;
-    char        pSendBuf[DEFAULT_SEND_BUF_LEN];
-    char        *pRecvBuf;
-    int         sendBufLen;
-    int         recvBufLen;
-    int         delay;
-    int         nBytesRemainingToBeSent;
-    int         nBytesRecvd;
+
     SOCKET      sock;
     std::string userName;
 };
@@ -28,7 +29,7 @@ public:
 class Client
 {
 public:
-    Client() : _bPeerShutdown(false){};
+    Client() : _bPeerShutdown(false),_bSocketError(false) {};
     ~Client() = default;
 
 public:     // general functions that user can use
@@ -36,32 +37,28 @@ public:     // general functions that user can use
     void    run();
     void    close();
 
-private:    // buffer management functions
-    void    freeSendBuf();
-    bool    prepareSendBuf();
-    bool    prepareRecvBuf();
-    void    freeRecvBuf();
-
-private:     // send and recive types
-    void    doSendThenRecv();
-
-private:    // send and recive functions
-    int     doSendOnce();
-    int     doRecvOnce();
-    void    doSendUntilDone();
-    void    doRecvUntilDone();
-    void    doShutDown();
-
 private:    // threads
     void    sendHandler();
     void    recvHandler();
 
+private:    // Message helpers
+    void    parseMessage(ClientType);
+    void    sendMessage();
+    void    recvMessage();
+    
+    void    generateErrorBits(std::string);
+    std::string simpleParityCheck(std::string msg);
+    std::string cyclicRedundancyCheck(std::string msg);
+    
 private:    // init functions
     bool    initCore();
     bool    initSocket();
     bool    parseArgs(int argc, char** argv);
+
+private:    // print functions
     void    printClientInfo();
     void    printHelp();
+
 private:
     WSADATA         _wsaData;
     ClientContext   _Context;
@@ -69,4 +66,5 @@ private:
     bool            _bInitSocket;
     bool            _bParseArgs;
     bool            _bPeerShutdown;
+    bool            _bSocketError;
 };
